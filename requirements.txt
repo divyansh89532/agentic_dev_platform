@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+pydantic
+ibm-watsonx-ai
+python-dotenv
