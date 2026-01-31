@@ -1,65 +1,66 @@
-from app.utils.watsonx_client import call_watsonx
-import json
-import re
+"""
+Database Architect Agent
 
-SYSTEM_PROMPT = """
-You are a senior database architect designing enterprise SaaS systems.
-
-Your task:
-- Design a relational database schema
-- Use the provided requirements ONLY
-- Normalize the schema up to Third Normal Form (3NF)
-- Introduce junction tables when required
-- Derive tables from entities and relationships
-- Clearly explain your design decisions
-
-OUTPUT FORMAT (STRICT):
-Return a single VALID JSON object with the following structure:
-
-{
-  "tables": [
-    {
-      "name": "string",
-      "columns": [
-        {
-          "name": "string",
-          "type": "string",
-          "constraints": ["string"]
-        }
-      ]
-    }
-  ],
-  "normalization_level": "3NF",
-  "design_rationale": ["string"],
-  "sql_schema": "string"
-}
-
-RULES:
-- Do NOT include explanations outside JSON
-- Do NOT invent new entities
-- Do NOT design authentication or authorization tables
-- Membership MUST be modeled as a junction table
-- Output JSON ONLY
+Designs relational database schemas based on structured requirements.
+Uses LangChain with watsonx.ai for reliable structured output.
 """
 
-def extract_last_json(text: str) -> dict:
-    matches = re.findall(r"\{[\s\S]*\}", text)
-    if not matches:
-        raise ValueError(f"No JSON found in output:\n{text}")
-    return json.loads(matches[-1])
+from app.utils.langchain_watsonx import call_llm_structured
+from app.models.schemas import RequirementsOutput, DatabaseDesignOutput
 
-def design_database(requirements: dict) -> dict:
+
+SYSTEM_PROMPT = """You are a senior database architect designing enterprise SaaS systems.
+
+Your task:
+- Design a relational database schema based on the provided requirements
+- Normalize the schema to Third Normal Form (3NF)
+- Create junction tables for many-to-many relationships
+- Derive tables from entities and relationships
+- Include appropriate data types and constraints
+
+RULES:
+- Use the provided requirements ONLY
+- Do NOT invent new entities
+- Do NOT design authentication or authorization tables unless specified
+- Include PRIMARY KEY, FOREIGN KEY, NOT NULL constraints as appropriate
+- Use standard SQL data types (UUID, VARCHAR, INTEGER, TIMESTAMP, etc.)
+- Provide complete CREATE TABLE statements in sql_schema"""
+
+
+def design_database(requirements: RequirementsOutput | dict) -> DatabaseDesignOutput:
+    """
+    Designs a database schema from structured requirements.
+    
+    Args:
+        requirements: Either a RequirementsOutput model or a dict with the same structure.
+    
+    Returns:
+        DatabaseDesignOutput: Validated Pydantic model with tables, normalization level,
+                             design rationale, and SQL schema.
+    """
     print("🗄️ Database Architect Agent running")
-
-    llm_output = call_watsonx(
+    
+    # Convert to JSON string for the prompt
+    if isinstance(requirements, RequirementsOutput):
+        requirements_json = requirements.model_dump_json(indent=2, by_alias=True)
+    else:
+        import json
+        requirements_json = json.dumps(requirements, indent=2)
+    
+    result = call_llm_structured(
         system_prompt=SYSTEM_PROMPT,
-        user_prompt=json.dumps(requirements, indent=2)
+        user_prompt=requirements_json,
+        output_schema=DatabaseDesignOutput,
+        temperature=0.1,
+        max_tokens=2048  # Larger for SQL schema
     )
+    
+    return result
 
-    return extract_last_json(llm_output)
 
-
+# For standalone testing
 if __name__ == "__main__":
+    # Test with locked requirements
     locked_requirements = {
         "entities": [
             {"name": "User", "description": "SaaS application user"},
@@ -83,5 +84,11 @@ if __name__ == "__main__":
     }
 
     result = design_database(locked_requirements)
-    print("\n✅ DATABASE DESIGN OUTPUT:\n")
-    print(result)
+    
+    print("\n✅ DATABASE DESIGN OUTPUT:")
+    print(f"Tables: {[t.name for t in result.tables]}")
+    print(f"Normalization: {result.normalization_level}")
+    print(f"Rationale: {result.design_rationale}")
+    
+    print("\n📄 SQL Schema:")
+    print(result.sql_schema)

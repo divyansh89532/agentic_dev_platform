@@ -1,5 +1,23 @@
-fastapi
-uvicorn
-pydantic
-ibm-watsonx-ai
-python-dotenv
+# Web Framework
+fastapi>=0.109.0
+uvicorn>=0.27.0
+
+# Data Validation
+pydantic>=2.5.0
+
+# IBM watsonx.ai + LangChain Integration
+langchain-ibm>=0.3.0
+langchain-core>=0.3.0
+ibm-watsonx-ai>=1.1.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Streamlit UI
+streamlit>=1.29.0
+
+# GitHub API (for real push)
+PyGithub>=2.1.0
+
+# Optional: For development
+httpx>=0.26.0
